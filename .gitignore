@@ -1,0 +1,11 @@
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+python/polars_lance/*.so
+target/
+
+*.pyc
+

@@ -1,0 +1,34 @@
+[build-system]
+requires = ["maturin>=1.13.1"]
+build-backend = "maturin"
+
+[project]
+name = "polars-lance"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+  "polars>=1.0.0",
+]
+
+[dependency-groups]
+dev = [
+  "maturin>=1.13.1",
+  "pylance>=4.0.1",
+  "pyarrow>=14.0.0",
+  "pytest>=8.0.0",
+  "mypy>=1.20.2",
+  "ruff>=0.15.12",
+]
+
+
+[tool.maturin]
+python-source = "python"
+module-name = "polars_lance._polars_lance"
+features = ["pyo3/extension-module", "pyo3"]
+
+[tool.mypy]
+files = ["python/polars_lance", "tests"]
+disallow_untyped_defs = true
+
+[tool.ruff]
+extend-exclude = ["target"]
