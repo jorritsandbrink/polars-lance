@@ -6,6 +6,8 @@ build-backend = "maturin"
 name = "polars-lance"
 version = "0.1.0"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
   "polars>=1.0.0",
 ]
