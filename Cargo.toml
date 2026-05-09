@@ -2,6 +2,7 @@
 name = "polars-lance"
 version = "0.1.0"
 edition = "2021"
+readme = "README.md"
 license = "MIT"
 
 [lib]
