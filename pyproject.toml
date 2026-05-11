@@ -4,7 +4,10 @@ build-backend = "maturin"
 
 [project]
 name = "polars-lance"
+description = "Polars plugin for reading Lance datasets into Polars dataframes."
 version = "0.1.0"
+authors = [{ name = "Jorrit Sandbrink" }]
+keywords = ["polars", "lance", "arrow"]
 requires-python = ">=3.10"
 readme = "README.md"
 license = "MIT"
@@ -12,6 +15,15 @@ license-files = ["LICENSE"]
 dependencies = [
   "polars>=1.0.0",
 ]
+classifiers = [
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Rust",
+]
+urls = { Repository = "https://github.com/jorritsandbrink/polars-lance" }
 
 [dependency-groups]
 dev = [
