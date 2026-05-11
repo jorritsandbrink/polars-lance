@@ -13,6 +13,13 @@ test-rust:
 test: develop
     uv run pytest
 
+test-versions:
+    UV_PYTHON=3.10 just test
+    UV_PYTHON=3.11 just test
+    UV_PYTHON=3.12 just test
+    UV_PYTHON=3.13 just test
+    UV_PYTHON=3.14 just test
+
 check-rust:
     cargo fmt --check
     cargo check
