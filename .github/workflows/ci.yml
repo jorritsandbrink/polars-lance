@@ -18,7 +18,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v6
@@ -57,7 +57,7 @@ jobs:
     name: Rust tests (${{ matrix.os }})
     needs: lint
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -84,7 +84,7 @@ jobs:
     name: Python tests (${{ matrix.os }}, py${{ matrix.python-version }})
     needs: lint
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
