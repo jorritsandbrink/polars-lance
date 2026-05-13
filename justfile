@@ -20,15 +20,18 @@ test-versions:
     UV_PYTHON=3.13 just test
     UV_PYTHON=3.14 just test
 
-check-rust:
+lint-rust:
     cargo fmt --check
     cargo check
     cargo check --features pyo3
 
-check-pyth: setup
+lint-pyth: setup
     uv run ruff check
     uv run ruff format --check
     uv run mypy
+
+lint-workflows:
+    actionlint
 
 fmt-rust:
     cargo fmt
