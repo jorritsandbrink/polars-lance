@@ -1,0 +1,21 @@
+name: Install protoc on Windows
+description: Download and add a pinned protoc binary to PATH on Windows runners
+
+inputs:
+  version:
+    description: Protoc version to install
+    required: false
+    default: "21.12"
+
+runs:
+  using: composite
+  steps:
+    - name: Download protoc
+      shell: pwsh
+      run: |
+        $version = '${{ inputs.version }}'
+        $protoc_root = Join-Path $env:RUNNER_TEMP "protoc-$version"
+        $zip_path = Join-Path $env:RUNNER_TEMP "protoc-$version-win64.zip"
+        Invoke-WebRequest "https://github.com/protocolbuffers/protobuf/releases/download/v$version/protoc-$version-win64.zip" -OutFile $zip_path
+        Expand-Archive -Path $zip_path -DestinationPath $protoc_root
+        "$protoc_root\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append

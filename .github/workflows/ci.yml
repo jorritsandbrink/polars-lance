@@ -71,9 +71,7 @@ jobs:
 
       - name: Install protoc
         if: runner.os == 'Windows'
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/install-protoc-windows
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -119,9 +117,7 @@ jobs:
 
       - name: Install protoc
         if: runner.os == 'Windows'
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/install-protoc-windows
 
       - uses: dtolnay/rust-toolchain@stable
 
