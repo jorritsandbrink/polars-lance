@@ -2,9 +2,6 @@ default:
     @just --list
 
 setup:
-    uv sync --group dev
-
-setup-no-install:
     uv sync --group dev --no-install-project
 
 develop: setup
@@ -28,7 +25,7 @@ lint-rust:
     cargo check
     cargo check --features pyo3
 
-lint-pyth: setup-no-install
+lint-pyth: setup
     uv run --no-project ruff check
     uv run --no-project ruff format --check
     uv run --no-project mypy
