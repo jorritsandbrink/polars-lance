@@ -1,0 +1,195 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish-to:
+        description: Publish target
+        type: choice
+        required: true
+        default: testpypi
+        options:
+          - testpypi
+          - pypi
+
+run-name: Release (${{ inputs.publish-to }})
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.publish-to }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-wheels:
+    name: Build wheels (${{ matrix.label }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux-x86_64
+            os: ubuntu-latest
+            python-version: "3.10"
+          - label: linux-x86_64
+            os: ubuntu-latest
+            python-version: "3.11"
+          - label: linux-x86_64
+            os: ubuntu-latest
+            python-version: "3.12"
+          - label: linux-x86_64
+            os: ubuntu-latest
+            python-version: "3.13"
+          - label: linux-x86_64
+            os: ubuntu-latest
+            python-version: "3.14"
+          - label: macos
+            os: macos-latest
+            python-version: "3.10"
+          - label: macos
+            os: macos-latest
+            python-version: "3.11"
+          - label: macos
+            os: macos-latest
+            python-version: "3.12"
+          - label: macos
+            os: macos-latest
+            python-version: "3.13"
+          - label: macos
+            os: macos-latest
+            python-version: "3.14"
+          - label: windows
+            os: windows-latest
+            python-version: "3.10"
+          - label: windows
+            os: windows-latest
+            python-version: "3.11"
+          - label: windows
+            os: windows-latest
+            python-version: "3.12"
+          - label: windows
+            os: windows-latest
+            python-version: "3.13"
+          - label: windows
+            os: windows-latest
+            python-version: "3.14"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install protoc
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/install-protoc-windows
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build Linux wheel
+        if: runner.os == 'Linux'
+        uses: PyO3/maturin-action@v1
+        with:
+          maturin-version: v1.13.1
+          command: build
+          manylinux: "2_28"
+          args: --release --out dist --compatibility pypi -i python${{ matrix.python-version }}
+
+      - name: Build wheel
+        if: runner.os != 'Linux'
+        uses: PyO3/maturin-action@v1
+        with:
+          maturin-version: v1.13.1
+          command: build
+          args: --release --out dist --compatibility pypi -i python
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.label }}-py${{ matrix.python-version }}
+          path: dist/*
+          if-no-files-found: error
+
+  build-sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          maturin-version: v1.13.1
+          command: sdist
+          args: --out dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*
+          if-no-files-found: error
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    if: ${{ inputs.publish-to == 'testpypi' }}
+    needs:
+      - build-wheels
+      - build-sdist
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/polars-lance
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: "*"
+          path: dist
+          merge-multiple: true
+
+      - name: Publish package distributions to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    name: Publish to PyPI
+    if: ${{ inputs.publish-to == 'pypi' }}
+    needs:
+      - build-wheels
+      - build-sdist
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/polars-lance
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: "*"
+          path: dist
+          merge-multiple: true
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
