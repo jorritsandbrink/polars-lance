@@ -133,4 +133,9 @@ jobs:
           tool: just
 
       - name: Run Python integration tests
-        run: just test
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            just test
+          else
+            just test-no-docker
+          fi

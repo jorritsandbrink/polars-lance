@@ -13,6 +13,9 @@ test-rust:
 test: develop
     uv run pytest
 
+test-no-docker: develop
+    uv run pytest -m "not needs_docker"
+
 test-versions:
     UV_PYTHON=3.10 just test
     UV_PYTHON=3.11 just test
