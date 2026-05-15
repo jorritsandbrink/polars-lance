@@ -24,10 +24,10 @@ tokio = { version = "1.48.0", features = ["rt-multi-thread"] }
 
 # Lance's `protoc` feature fails building on Windows, and requires a preinstalled `protoc` binary instead.
 [target.'cfg(windows)'.dependencies]
-lance = { version = "0.38.2", default-features = false }
+lance = { version = "0.38.2", default-features = false, features = ["aws", "azure", "gcp"] }
 
 [target.'cfg(not(windows))'.dependencies]
-lance = { version = "0.38.2", default-features = false, features = ["protoc"] }
+lance = { version = "0.38.2", default-features = false, features = ["aws", "azure", "gcp", "protoc"] }
 
 [dev-dependencies]
 rstest = "0.26.1"

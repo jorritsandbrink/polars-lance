@@ -6,6 +6,7 @@ use lance::dataset::builder::DatasetBuilder;
 use lance::dataset::scanner::{DatasetRecordBatchStream, Scanner};
 use lance::{Dataset, Error as LanceError};
 use polars::prelude::{DataFrame, Expr, IntoLazy, PolarsError, Schema, SchemaExt};
+use std::collections::HashMap;
 
 use crate::arrow_bridge::{ArrowBridgeError, ArrowRecordBatchExt, ArrowSchemaExt};
 use crate::sync::TOKIO_RUNTIME;
@@ -64,6 +65,7 @@ pub struct LanceScannerOptions {
     pub predicate: Option<Expr>,
     pub n_rows: Option<usize>,
     pub batch_size: Option<usize>,
+    pub storage_options: Option<HashMap<String, String>>,
 }
 
 pub struct LanceScanner {
@@ -108,20 +110,33 @@ impl LanceScanner {
         Ok(Some(df))
     }
 
-    pub fn schema_for_uri(uri: &str) -> Result<Schema, LanceScannerError> {
-        let dataset = Self::open_dataset(uri)?;
+    pub fn schema_for_uri(
+        uri: &str,
+        storage_options: Option<HashMap<String, String>>,
+    ) -> Result<Schema, LanceScannerError> {
+        let dataset = Self::open_dataset(uri, storage_options)?;
         let lance_schema = dataset.schema();
         let arrow_schema = ArrowSchema::from(lance_schema);
         let polars_arrow_schema = arrow_schema.to_polars_arrow_schema()?;
         Ok(Schema::from_arrow_schema(&polars_arrow_schema))
     }
 
-    fn open_dataset(uri: &str) -> Result<Dataset, LanceError> {
-        TOKIO_RUNTIME.block_on(Self::build_lance_dataset_builder(uri).load())
+    fn open_dataset(
+        uri: &str,
+        storage_options: Option<HashMap<String, String>>,
+    ) -> Result<Dataset, LanceError> {
+        TOKIO_RUNTIME.block_on(Self::build_lance_dataset_builder(uri, storage_options).load())
     }
 
-    fn build_lance_dataset_builder(uri: &str) -> DatasetBuilder {
-        DatasetBuilder::from_uri(uri)
+    fn build_lance_dataset_builder(
+        uri: &str,
+        storage_options: Option<HashMap<String, String>>,
+    ) -> DatasetBuilder {
+        let mut builder = DatasetBuilder::from_uri(uri);
+        if let Some(storage_options) = storage_options {
+            builder = builder.with_storage_options(storage_options);
+        }
+        builder
     }
 
     fn get_or_init_stream(&mut self) -> Result<&mut DatasetRecordBatchStream, LanceError> {
@@ -138,7 +153,7 @@ impl LanceScanner {
     }
 
     fn build_lance_scanner(&self) -> Result<Scanner, LanceError> {
-        let dataset = Self::open_dataset(&self.uri)?;
+        let dataset = Self::open_dataset(&self.uri, self.options.storage_options.clone())?;
         let mut scanner = dataset.scan();
 
         if let Some(columns) = self.options.with_columns.as_deref() {
@@ -165,6 +180,7 @@ impl LanceScanner {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::Arc;
 
     use arrow::array::{ArrayRef, Int32Array, StringArray};
@@ -232,6 +248,7 @@ mod tests {
             predicate: None,
             n_rows: Some(3),
             batch_size: Some(128),
+            storage_options: None,
         };
 
         let scanner = LanceScanner::new(uri.clone(), options.clone());
@@ -241,7 +258,27 @@ mod tests {
         assert!(scanner.options.predicate.is_none());
         assert_eq!(scanner.options.n_rows, options.n_rows);
         assert_eq!(scanner.options.batch_size, options.batch_size);
+        assert!(scanner.options.storage_options.is_none());
         assert!(scanner.stream.is_none());
+    }
+
+    #[test]
+    fn lance_scanner_new_with_storage_options() {
+        let uri = "s3://my-bucket/my_dataset.lance".to_owned();
+        let storage_options = HashMap::from([
+            ("aws_access_key_id".to_owned(), "foo".to_owned()),
+            ("aws_secret_access_key".to_owned(), "bar".to_owned()),
+            ("aws_region".to_owned(), "us-east-1".to_owned()),
+        ]);
+        let options = LanceScannerOptions {
+            storage_options: Some(storage_options.clone()),
+            ..Default::default()
+        };
+
+        let scanner = LanceScanner::new(uri.clone(), options);
+
+        assert_eq!(scanner.uri, uri);
+        assert_eq!(scanner.options.storage_options, Some(storage_options));
     }
 
     #[rstest]
@@ -286,7 +323,7 @@ mod tests {
 
     #[rstest]
     fn lance_scanner_schema_for_uri(test_dataset: TestDataset) {
-        let schema = LanceScanner::schema_for_uri(&test_dataset.uri).unwrap();
+        let schema = LanceScanner::schema_for_uri(&test_dataset.uri, None).unwrap();
 
         let expected_schema = Schema::from_iter([
             ("my_int32_field".into(), DataType::Int32),

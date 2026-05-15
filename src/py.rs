@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use pyo3::exceptions::PyRuntimeError;
@@ -23,13 +24,14 @@ pub struct PyLanceScanner(LanceScanner);
 #[pymethods]
 impl PyLanceScanner {
     #[new]
-    #[pyo3(signature = (uri, with_columns=None, predicate=None, n_rows=None, batch_size=None))]
+    #[pyo3(signature = (uri, with_columns=None, predicate=None, n_rows=None, batch_size=None, storage_options=None))]
     fn new(
         uri: String,
         with_columns: Option<Vec<String>>,
         predicate: Option<PyExpr>,
         n_rows: Option<usize>,
         batch_size: Option<usize>,
+        storage_options: Option<HashMap<String, String>>,
     ) -> Self {
         Self(LanceScanner::new(
             uri,
@@ -38,6 +40,7 @@ impl PyLanceScanner {
                 predicate: predicate.map(|predicate| predicate.0),
                 n_rows,
                 batch_size,
+                storage_options,
             },
         ))
     }
@@ -50,8 +53,12 @@ impl PyLanceScanner {
     }
 
     #[staticmethod]
-    fn schema_for_uri(uri: String) -> PyResult<PySchema> {
-        LanceScanner::schema_for_uri(&uri)
+    #[pyo3(signature = (uri, storage_options=None))]
+    fn schema_for_uri(
+        uri: String,
+        storage_options: Option<HashMap<String, String>>,
+    ) -> PyResult<PySchema> {
+        LanceScanner::schema_for_uri(&uri, storage_options)
             .map(|schema| PySchema(Arc::new(schema)))
             .map_err(PyErr::from)
     }

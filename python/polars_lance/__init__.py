@@ -4,12 +4,16 @@ from pathlib import Path
 import polars as pl
 from polars.io.plugins import register_io_source
 
-from . import _polars_lance
+from polars_lance import _polars_lance
 
 __all__ = ["scan_lance"]
 
 
-def scan_lance(source: str | Path) -> pl.LazyFrame:
+def scan_lance(
+    source: str | Path,
+    *,
+    storage_options: dict[str, str] | None = None,
+) -> pl.LazyFrame:
     source_str = str(source)
 
     def io_source(
@@ -24,6 +28,7 @@ def scan_lance(source: str | Path) -> pl.LazyFrame:
             predicate=predicate,
             n_rows=n_rows,
             batch_size=batch_size,
+            storage_options=storage_options,
         )
 
         while (df := lance_scanner.next()) is not None:
@@ -31,5 +36,8 @@ def scan_lance(source: str | Path) -> pl.LazyFrame:
 
     return register_io_source(
         io_source=io_source,
-        schema=_polars_lance.LanceScanner.schema_for_uri(source_str),
+        schema=_polars_lance.LanceScanner.schema_for_uri(
+            uri=source_str,
+            storage_options=storage_options,
+        ),
     )
