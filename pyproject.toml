@@ -33,8 +33,15 @@ dev = [
   "pytest>=8.0.0",
   "mypy>=1.20.2",
   "ruff>=0.15.12",
+  "testcontainers[minio]>=4.14.2",
+  "azure-storage-blob>=12.29.0",
 ]
 
+[tool.pytest.ini_options]
+markers = ["needs_docker: marks tests that require a running Docker daemon"]
+filterwarnings = [
+  "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning:testcontainers",
+]
 
 [tool.maturin]
 python-source = "python"
@@ -44,6 +51,10 @@ features = ["pyo3/extension-module", "pyo3"]
 [tool.mypy]
 files = ["python/polars_lance", "tests"]
 disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "testcontainers.*"
+ignore_missing_imports = true
 
 [tool.ruff]
 extend-exclude = ["target"]

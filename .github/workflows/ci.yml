@@ -88,7 +88,7 @@ jobs:
     name: Python tests (${{ matrix.os }}, py${{ matrix.python-version }})
     needs: test-rust
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -133,4 +133,9 @@ jobs:
           tool: just
 
       - name: Run Python integration tests
-        run: just test
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            just test
+          else
+            just test-no-docker
+          fi
