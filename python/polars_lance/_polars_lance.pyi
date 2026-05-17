@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 import polars as pl
 
 class LanceScanner:
@@ -19,4 +21,9 @@ class LanceScanner:
     ) -> dict[str, pl.DataType]: ...
     def next(self) -> pl.DataFrame | None: ...
 
-def write_lance(df: pl.DataFrame, target: str) -> None: ...
+def write_lance(
+    df: pl.DataFrame,
+    target: str,
+    *,
+    mode: Literal["error", "append", "overwrite"] = "error",
+) -> None: ...

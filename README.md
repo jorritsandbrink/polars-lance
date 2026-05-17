@@ -28,6 +28,12 @@ df = pl.DataFrame({"id": [1, 2], "val": ["a", "b"]})
 write_lance(df, "data/example.lance")
 ```
 
+Pass `mode` to control behavior in case the target dataset already exists. Valid values are `error` (default), `append`, and `overwrite`.
+
+```python
+write_lance(df, "data/example.lance", mode="append")
+```
+
 ## Cloud storage
 
 Pass `storage_options` to access Lance datasets stored in AWS S3, Azure Blob Storage, or Google Cloud Storage.

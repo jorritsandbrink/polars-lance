@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchIterator;
-use lance::dataset::{Dataset, WriteMode, WriteParams};
+use lance::dataset::{Dataset, WriteMode as LanceWriteMode, WriteParams};
 use polars::frame::chunk_df_for_writing;
 use polars::prelude::{CompatLevel, DataFrame, SchemaExt};
 
@@ -12,12 +12,32 @@ use crate::sync::TOKIO_RUNTIME;
 
 const LANCE_ARROW_COMPAT_LEVEL: CompatLevel = CompatLevel::oldest();
 
+pub enum PolarsLanceWriteMode {
+    Error,
+    Append,
+    Overwrite,
+}
+
+impl From<PolarsLanceWriteMode> for LanceWriteMode {
+    fn from(mode: PolarsLanceWriteMode) -> Self {
+        match mode {
+            PolarsLanceWriteMode::Error => Self::Create,
+            PolarsLanceWriteMode::Append => Self::Append,
+            PolarsLanceWriteMode::Overwrite => Self::Overwrite,
+        }
+    }
+}
+
 fn chunk_df_for_lance_write(mut df: DataFrame) -> Result<DataFrame, LanceWriterError> {
     // 512 * 512 matches chunk size used internally by Polars.
     Ok(chunk_df_for_writing(&mut df, 512 * 512)?.into_owned())
 }
 
-pub fn write_lance_dataset(df: DataFrame, uri: &str) -> Result<(), LanceWriterError> {
+pub fn write_lance_dataset(
+    df: DataFrame,
+    uri: &str,
+    mode: PolarsLanceWriteMode,
+) -> Result<(), LanceWriterError> {
     let mut df = chunk_df_for_lance_write(df)?;
 
     let dfs = df.split_chunks().collect::<Vec<_>>();
@@ -47,7 +67,7 @@ pub fn write_lance_dataset(df: DataFrame, uri: &str) -> Result<(), LanceWriterEr
     let batch_iterator = RecordBatchIterator::new(batches, Arc::new(schema));
 
     let write_params = WriteParams {
-        mode: WriteMode::Overwrite,
+        mode: mode.into(),
         ..WriteParams::default()
     };
 

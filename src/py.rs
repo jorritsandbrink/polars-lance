@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use pyo3::wrap_pyfunction;
@@ -10,6 +10,7 @@ use pyo3_polars::{PyDataFrame, PyExpr, PySchema};
 
 use crate::{
     write_lance_dataset, LanceScanner, LanceScannerError, LanceScannerOptions, LanceWriterError,
+    PolarsLanceWriteMode,
 };
 
 impl From<LanceScannerError> for PyErr {
@@ -77,9 +78,20 @@ impl PyLanceScanner {
 }
 
 #[pyfunction]
-#[pyo3(signature = (df, target))]
-fn write_lance(df: PyDataFrame, target: String) -> PyResult<()> {
-    write_lance_dataset(df.into(), &target).map_err(PyErr::from)
+#[pyo3(signature = (df, target, *, mode = "error"))]
+fn write_lance(df: PyDataFrame, target: String, mode: &str) -> PyResult<()> {
+    let mode = match mode {
+        "error" => PolarsLanceWriteMode::Error,
+        "append" => PolarsLanceWriteMode::Append,
+        "overwrite" => PolarsLanceWriteMode::Overwrite,
+        _ => {
+            return Err(PyValueError::new_err(
+                "`mode` must be one of: 'error', 'append', 'overwrite'",
+            ));
+        }
+    };
+
+    write_lance_dataset(df.into(), &target, mode).map_err(PyErr::from)
 }
 
 #[pymodule]

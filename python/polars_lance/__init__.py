@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 from polars.io.plugins import register_io_source
@@ -46,5 +47,7 @@ def scan_lance(
 def write_lance(
     df: pl.DataFrame,
     target: str | Path,
+    *,
+    mode: Literal["error", "append", "overwrite"] = "error",
 ) -> None:
-    _polars_lance.write_lance(df=df, target=str(target))
+    _polars_lance.write_lance(df, target=str(target), mode=mode)

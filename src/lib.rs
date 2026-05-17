@@ -9,4 +9,4 @@ mod py;
 
 pub use err::{LanceScannerError, LanceWriterError};
 pub use scan::{LanceScanner, LanceScannerOptions};
-pub use write::write_lance_dataset;
+pub use write::{write_lance_dataset, PolarsLanceWriteMode};
