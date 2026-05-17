@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "polars-lance"
-description = "Polars plugin for reading Lance datasets into Polars dataframes."
+description = "Polars plugin for reading and writing Lance datasets"
 version = "0.2.0"
 authors = [{ name = "Jorrit Sandbrink" }]
 keywords = ["polars", "lance", "arrow"]

@@ -1,8 +1,12 @@
-mod arrow_bridge;
-mod scanner;
+mod arrow;
+mod err;
+mod scan;
 mod sync;
+mod write;
 
 #[cfg(feature = "pyo3")]
 mod py;
 
-pub use scanner::{LanceScanner, LanceScannerError, LanceScannerOptions};
+pub use err::{LanceScannerError, LanceWriterError};
+pub use scan::{LanceScanner, LanceScannerOptions};
+pub use write::write_lance_dataset;

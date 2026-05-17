@@ -3,10 +3,12 @@ use std::fmt;
 use std::mem::transmute;
 use std::sync::Arc;
 
-use arrow::array::ArrayRef as ArrowArrayRef;
+use arrow::array::{make_array, ArrayRef as ArrowArrayRef, NullArray as ArrowNullArray};
 use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema};
 use arrow::error::ArrowError;
-use arrow::ffi::{FFI_ArrowArray as CArrowArray, FFI_ArrowSchema as CArrowSchema};
+use arrow::ffi::{
+    from_ffi_and_data_type, FFI_ArrowArray as CArrowArray, FFI_ArrowSchema as CArrowSchema,
+};
 use arrow::record_batch::RecordBatch as ArrowRecordBatch;
 use polars::prelude::{
     ArrayRef as PolarsArrowArrayRef, ArrowDataType as PolarsArrowDataType,
@@ -14,10 +16,10 @@ use polars::prelude::{
 };
 use polars_core::utils::arrow::{
     ffi::{
-        import_array_from_c, import_field_from_c, ArrowArray as PolarsCArrowArray,
-        ArrowSchema as PolarsCArrowSchema,
+        export_array_to_c, export_field_to_c, import_array_from_c, import_field_from_c,
+        ArrowArray as PolarsCArrowArray, ArrowSchema as PolarsCArrowSchema,
     },
-    record_batch::RecordBatch as PolarsRecordBatch,
+    record_batch::RecordBatch as PolarsArrowRecordBatch,
 };
 
 pub(crate) type ArrowBridgeResult<T> = Result<T, ArrowBridgeError>;
@@ -68,6 +70,16 @@ impl AsPolarsCArrowSchema for CArrowSchema {
     }
 }
 
+trait AsCArrowSchema {
+    unsafe fn as_c_arrow_schema(&self) -> &CArrowSchema;
+}
+
+impl AsCArrowSchema for PolarsCArrowSchema {
+    unsafe fn as_c_arrow_schema(&self) -> &CArrowSchema {
+        &*(self as *const PolarsCArrowSchema).cast::<CArrowSchema>()
+    }
+}
+
 trait IntoPolarsCArrowArray {
     unsafe fn into_polars_c_arrow_array(self) -> PolarsCArrowArray;
 }
@@ -75,6 +87,16 @@ trait IntoPolarsCArrowArray {
 impl IntoPolarsCArrowArray for CArrowArray {
     unsafe fn into_polars_c_arrow_array(self) -> PolarsCArrowArray {
         transmute::<CArrowArray, PolarsCArrowArray>(self)
+    }
+}
+
+trait IntoCArrowArray {
+    unsafe fn into_c_arrow_array(self) -> CArrowArray;
+}
+
+impl IntoCArrowArray for PolarsCArrowArray {
+    unsafe fn into_c_arrow_array(self) -> CArrowArray {
+        transmute::<PolarsCArrowArray, CArrowArray>(self)
     }
 }
 
@@ -95,7 +117,27 @@ pub(crate) trait ArrowArrayRefExt {
 }
 
 pub(crate) trait ArrowRecordBatchExt {
-    fn to_polars_record_batch(&self) -> ArrowBridgeResult<PolarsRecordBatch>;
+    fn to_polars_arrow_record_batch(&self) -> ArrowBridgeResult<PolarsArrowRecordBatch>;
+}
+
+pub(crate) trait PolarsArrowDataTypeExt {
+    fn to_arrow_data_type(&self) -> ArrowBridgeResult<ArrowDataType>;
+}
+
+pub(crate) trait PolarsArrowFieldExt {
+    fn to_arrow_field(&self) -> ArrowBridgeResult<ArrowField>;
+}
+
+pub(crate) trait PolarsArrowSchemaExt {
+    fn to_arrow_schema(&self) -> ArrowBridgeResult<ArrowSchema>;
+}
+
+pub(crate) trait PolarsArrowArrayRefExt {
+    fn to_arrow_array_ref(&self) -> ArrowBridgeResult<ArrowArrayRef>;
+}
+
+pub(crate) trait PolarsArrowRecordBatchExt {
+    fn to_arrow_record_batch(&self) -> ArrowBridgeResult<ArrowRecordBatch>;
 }
 
 fn import_polars_arrow_field(c_arrow_schema: &CArrowSchema) -> ArrowBridgeResult<PolarsArrowField> {
@@ -144,16 +186,73 @@ impl ArrowArrayRefExt for ArrowArrayRef {
 }
 
 impl ArrowRecordBatchExt for ArrowRecordBatch {
-    fn to_polars_record_batch(&self) -> ArrowBridgeResult<PolarsRecordBatch> {
+    fn to_polars_arrow_record_batch(&self) -> ArrowBridgeResult<PolarsArrowRecordBatch> {
         let schema = self.schema().as_ref().to_polars_arrow_schema()?;
 
         let arrays = self
             .columns()
             .iter()
-            .map(|array_ref| array_ref.to_polars_arrow_array_ref())
+            .map(ArrowArrayRefExt::to_polars_arrow_array_ref)
             .collect::<ArrowBridgeResult<Vec<_>>>()?;
 
-        PolarsRecordBatch::try_new(self.num_rows(), Arc::new(schema), arrays).map_err(Into::into)
+        PolarsArrowRecordBatch::try_new(self.num_rows(), Arc::new(schema), arrays)
+            .map_err(Into::into)
+    }
+}
+
+impl PolarsArrowDataTypeExt for PolarsArrowDataType {
+    fn to_arrow_data_type(&self) -> ArrowBridgeResult<ArrowDataType> {
+        PolarsArrowField::new("dummy".into(), self.clone(), true)
+            .to_arrow_field()
+            .map(|field| field.data_type().clone())
+    }
+}
+
+impl PolarsArrowFieldExt for PolarsArrowField {
+    fn to_arrow_field(&self) -> ArrowBridgeResult<ArrowField> {
+        // Convert from Polars Arrow to Arrow via Arrow C data interface.
+        let polars_c_arrow_schema = export_field_to_c(self);
+        let c_arrow_schema = unsafe { polars_c_arrow_schema.as_c_arrow_schema() };
+        ArrowField::try_from(c_arrow_schema).map_err(Into::into)
+    }
+}
+
+impl PolarsArrowSchemaExt for PolarsArrowSchema {
+    fn to_arrow_schema(&self) -> ArrowBridgeResult<ArrowSchema> {
+        self.iter_values()
+            .map(PolarsArrowFieldExt::to_arrow_field)
+            .collect::<ArrowBridgeResult<Vec<_>>>()
+            .map(ArrowSchema::new)
+    }
+}
+
+impl PolarsArrowArrayRefExt for PolarsArrowArrayRef {
+    fn to_arrow_array_ref(&self) -> ArrowBridgeResult<ArrowArrayRef> {
+        if matches!(self.dtype(), PolarsArrowDataType::Null) {
+            return Ok(Arc::new(ArrowNullArray::new(self.len())));
+        }
+
+        // Convert from Polars Arrow to Arrow via Arrow C data interface.
+        let polars_c_arrow_array = export_array_to_c(self.as_ref().to_boxed());
+        let arrow_data_type = self.dtype().to_arrow_data_type()?;
+        let array_data = unsafe {
+            let c_arrow_array = polars_c_arrow_array.into_c_arrow_array();
+            from_ffi_and_data_type(c_arrow_array, arrow_data_type)
+        }?;
+        Ok(make_array(array_data))
+    }
+}
+
+impl PolarsArrowRecordBatchExt for PolarsArrowRecordBatch {
+    fn to_arrow_record_batch(&self) -> ArrowBridgeResult<ArrowRecordBatch> {
+        let schema = self.schema().to_arrow_schema()?;
+        let arrays = self
+            .columns()
+            .iter()
+            .map(|array_ref| array_ref.to_arrow_array_ref())
+            .collect::<ArrowBridgeResult<Vec<_>>>()?;
+
+        ArrowRecordBatch::try_new(Arc::new(schema), arrays).map_err(Into::into)
     }
 }
 
@@ -260,7 +359,7 @@ mod tests {
     }
 
     #[test]
-    fn to_polars_record_batch() {
+    fn to_polars_arrow_record_batch() {
         let int32_data = vec![Some(1), None, Some(3)];
         let boolean_data = vec![Some(true), Some(false), None];
         let utf8_data = vec!["a", "b", "c"];
@@ -296,17 +395,17 @@ mod tests {
         ])
         .unwrap();
 
-        let polars_record_batch = arrow_record_batch.to_polars_record_batch().unwrap();
+        let polars_arrow_record_batch = arrow_record_batch.to_polars_arrow_record_batch().unwrap();
 
-        assert_eq!(polars_record_batch.height(), 3);
-        assert_eq!(polars_record_batch.width(), 2);
+        assert_eq!(polars_arrow_record_batch.height(), 3);
+        assert_eq!(polars_arrow_record_batch.width(), 2);
 
-        let (field_0_name, field_0) = polars_record_batch.schema().get_at_index(0).unwrap();
+        let (field_0_name, field_0) = polars_arrow_record_batch.schema().get_at_index(0).unwrap();
         assert_eq!(field_0_name, &"my_int32_field");
         assert_eq!(field_0.is_nullable, true);
         assert_eq!(field_0.dtype(), &PolarsArrowDataType::Int32);
 
-        let (field_1_name, field_1) = polars_record_batch.schema().get_at_index(1).unwrap();
+        let (field_1_name, field_1) = polars_arrow_record_batch.schema().get_at_index(1).unwrap();
         assert_eq!(field_1_name, &"my_struct_field");
         assert_eq!(field_1.is_nullable, false);
         match field_1.dtype() {
@@ -322,13 +421,13 @@ mod tests {
             _ => panic!("expected a struct field"),
         }
 
-        let polars_int32_array = polars_record_batch.columns()[0]
+        let polars_int32_array = polars_arrow_record_batch.columns()[0]
             .as_any()
             .downcast_ref::<PolarsInt32Array>()
             .unwrap();
         assert_eq!(polars_int32_array, &PolarsInt32Array::from(int32_data));
 
-        let polars_struct_array = polars_record_batch.columns()[1]
+        let polars_struct_array = polars_arrow_record_batch.columns()[1]
             .as_any()
             .downcast_ref::<PolarsStructArray>()
             .unwrap();

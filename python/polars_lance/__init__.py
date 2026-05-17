@@ -6,7 +6,7 @@ from polars.io.plugins import register_io_source
 
 from polars_lance import _polars_lance
 
-__all__ = ["scan_lance"]
+__all__ = ["scan_lance", "write_lance"]
 
 
 def scan_lance(
@@ -41,3 +41,10 @@ def scan_lance(
             storage_options=storage_options,
         ),
     )
+
+
+def write_lance(
+    df: pl.DataFrame,
+    target: str | Path,
+) -> None:
+    _polars_lance.write_lance(df=df, target=str(target))

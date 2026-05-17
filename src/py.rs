@@ -4,15 +4,27 @@ use std::sync::Arc;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
+use pyo3::wrap_pyfunction;
 use pyo3_polars::error::PyPolarsErr;
 use pyo3_polars::{PyDataFrame, PyExpr, PySchema};
 
-use crate::{LanceScanner, LanceScannerError, LanceScannerOptions};
+use crate::{
+    write_lance_dataset, LanceScanner, LanceScannerError, LanceScannerOptions, LanceWriterError,
+};
 
 impl From<LanceScannerError> for PyErr {
     fn from(err: LanceScannerError) -> Self {
         match err {
             LanceScannerError::Polars(err) => PyErr::from(PyPolarsErr::from(err)),
+            other => PyRuntimeError::new_err(other.to_string()),
+        }
+    }
+}
+
+impl From<LanceWriterError> for PyErr {
+    fn from(err: LanceWriterError) -> Self {
+        match err {
+            LanceWriterError::Polars(err) => PyErr::from(PyPolarsErr::from(err)),
             other => PyRuntimeError::new_err(other.to_string()),
         }
     }
@@ -64,8 +76,15 @@ impl PyLanceScanner {
     }
 }
 
+#[pyfunction]
+#[pyo3(signature = (df, target))]
+fn write_lance(df: PyDataFrame, target: String) -> PyResult<()> {
+    write_lance_dataset(df.into(), &target).map_err(PyErr::from)
+}
+
 #[pymodule]
 fn _polars_lance(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<PyLanceScanner>()?;
+    m.add_function(wrap_pyfunction!(write_lance, m)?)?;
     Ok(())
 }

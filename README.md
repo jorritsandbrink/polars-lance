@@ -1,6 +1,6 @@
 # polars-lance
 
-Polars plugin for reading Lance datasets into Polars dataframes.
+Polars plugin for reading Lance datasets into Polars dataframes and writing Polars dataframes to Lance datasets.
 
 ## Installation
 
@@ -8,13 +8,24 @@ Polars plugin for reading Lance datasets into Polars dataframes.
 pip install polars-lance
 ```
 
-## Usage
+## Read
 
 ```python
 from polars_lance import scan_lance
 
 lf = scan_lance("data/example.lance")
 df = lf.collect()
+```
+
+## Write
+
+```python
+import polars as pl
+
+from polars_lance import write_lance
+
+df = pl.DataFrame({"id": [1, 2], "val": ["a", "b"]})
+write_lance(df, "data/example.lance")
 ```
 
 ## Cloud storage
